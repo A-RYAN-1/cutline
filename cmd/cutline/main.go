@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -14,6 +15,8 @@ import (
 
 const usage = `usage: cutline diff [flags] A B
        cutline plan [flags] A B
+       cutline notes [flags] A B
+       cutline verify [flags] A B
 
 diff lists the pull requests in branch A but not in B, and in B but not in A,
 matching across squash merges and cherry-picks.
@@ -22,89 +25,177 @@ plan orders the cherry-picks that bring changes from A into B, warns about
 older changes in A that touch the same files, and with -dry-run applies them
 in a temporary worktree to find conflicts. It never changes your branches.
 
+notes writes release notes for the changes in A that are not yet in B.
+
+verify checks that B has everything A has and nothing A lacks. It exits 1 when
+it does not, so a release pipeline can gate on it.
+
 flags:
 `
 
 func main() {
-	if len(os.Args) >= 2 {
-		switch os.Args[1] {
-		case "diff":
-			os.Exit(runDiff(os.Args[2:]))
-		case "plan":
-			os.Exit(runPlan(os.Args[2:]))
-		}
-	}
-	fmt.Fprint(os.Stderr, usage)
-	os.Exit(2)
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-func runDiff(args []string) int {
-	fs := flag.NewFlagSet("diff", flag.ContinueOnError)
-	dir := fs.String("C", "", "repository directory (default: current directory)")
-	since := fs.String("since", "", "only commits newer than this date, for example 2026-10-01 or \"2 weeks ago\"")
-	format := fs.String("format", "text", "output format: text, markdown or json")
-	ticket := fs.Bool("match-ticket", false, "also match by ticket key such as ABC-123 in the subject")
+// run executes one subcommand and returns the process exit code: 0 success,
+// 1 failure (or, for verify, a failed check), 2 usage error.
+func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 {
+		rest := args[1:]
+		switch args[0] {
+		case "diff":
+			return runDiff(rest, stdout, stderr)
+		case "plan":
+			return runPlan(rest, stdout, stderr)
+		case "notes":
+			return runNotes(rest, stdout, stderr)
+		case "verify":
+			return runVerify(rest, stdout, stderr)
+		}
+	}
+	fmt.Fprint(stderr, usage)
+	return 2
+}
+
+// common holds the flags every subcommand shares.
+type common struct {
+	dir, since, format string
+}
+
+func newFlags(name string, stderr io.Writer, c *common) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.StringVar(&c.dir, "C", "", "repository directory (default: current directory)")
+	fs.StringVar(&c.since, "since", "", "only commits newer than this date, for example 2026-10-01 or \"2 weeks ago\"")
+	fs.StringVar(&c.format, "format", "text", "output format: text, markdown or json")
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), usage)
 		fs.PrintDefaults()
 	}
-	if err := fs.Parse(args); err != nil {
-		return 2
+	return fs
+}
+
+// parse reads the flags and the two branch arguments.
+func parse(fs *flag.FlagSet, args []string) (a, b string, ok bool) {
+	if err := fs.Parse(args); err != nil || fs.NArg() != 2 {
+		if err == nil {
+			fs.Usage()
+		}
+		return "", "", false
 	}
-	if fs.NArg() != 2 {
-		fs.Usage()
-		return 2
+	return fs.Arg(0), fs.Arg(1), true
+}
+
+func parsePicks(s string) ([]int, error) {
+	var nums []int
+	for _, f := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' }) {
+		n, err := strconv.Atoi(strings.TrimPrefix(f, "#"))
+		if err != nil || n <= 0 {
+			return nil, fmt.Errorf("bad pull request number %q", f)
+		}
+		nums = append(nums, n)
 	}
-	res, err := cutline.Diff(context.Background(), fs.Arg(0), fs.Arg(1), cutline.Options{
-		Dir: *dir, Since: *since, MatchTicket: *ticket,
-	})
+	return nums, nil
+}
+
+type writer interface {
+	Write(io.Writer, cutline.Format) error
+}
+
+func finish(w writer, format string, stdout, stderr io.Writer, err error) int {
+	if err == nil {
+		err = w.Write(stdout, cutline.Format(format))
+	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "cutline:", err)
-		return 1
-	}
-	if err := res.Write(os.Stdout, cutline.Format(*format)); err != nil {
-		fmt.Fprintln(os.Stderr, "cutline:", err)
+		fmt.Fprintln(stderr, "cutline:", err)
 		return 1
 	}
 	return 0
 }
 
-func runPlan(args []string) int {
-	fs := flag.NewFlagSet("plan", flag.ContinueOnError)
-	dir := fs.String("C", "", "repository directory (default: current directory)")
-	since := fs.String("since", "", "only commits newer than this date, for example 2026-10-01 or \"2 weeks ago\"")
-	format := fs.String("format", "text", "output format: text, markdown or json")
+func runDiff(args []string, stdout, stderr io.Writer) int {
+	var c common
+	fs := newFlags("diff", stderr, &c)
+	ticket := fs.Bool("match-ticket", false, "also match by ticket key such as ABC-123 in the subject")
+	a, b, ok := parse(fs, args)
+	if !ok {
+		return 2
+	}
+	res, err := cutline.Diff(context.Background(), a, b, cutline.Options{Dir: c.dir, Since: c.since, MatchTicket: *ticket})
+	if err != nil {
+		return finish(nil, c.format, stdout, stderr, err)
+	}
+	return finish(res, c.format, stdout, stderr, nil)
+}
+
+func runPlan(args []string, stdout, stderr io.Writer) int {
+	var c common
+	fs := newFlags("plan", stderr, &c)
 	picks := fs.String("pick", "", "comma separated pull request numbers to promote (default: every change missing from B)")
 	dry := fs.Bool("dry-run", false, "apply the picks in a temporary worktree and report conflicts")
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), usage)
-		fs.PrintDefaults()
-	}
-	if err := fs.Parse(args); err != nil {
+	a, b, ok := parse(fs, args)
+	if !ok {
 		return 2
 	}
-	if fs.NArg() != 2 {
-		fs.Usage()
+	nums, err := parsePicks(*picks)
+	if err != nil {
+		fmt.Fprintln(stderr, "cutline:", err)
 		return 2
 	}
-	var nums []int
-	for _, f := range strings.FieldsFunc(*picks, func(r rune) bool { return r == ',' || r == ' ' }) {
-		n, err := strconv.Atoi(strings.TrimPrefix(f, "#"))
-		if err != nil || n <= 0 {
-			fmt.Fprintf(os.Stderr, "cutline: bad pull request number %q\n", f)
-			return 2
-		}
-		nums = append(nums, n)
-	}
-	plan, err := cutline.BuildPlan(context.Background(), fs.Arg(0), fs.Arg(1), cutline.PlanOptions{
-		Options: cutline.Options{Dir: *dir, Since: *since}, Picks: nums, DryRun: *dry,
+	plan, err := cutline.BuildPlan(context.Background(), a, b, cutline.PlanOptions{
+		Options: cutline.Options{Dir: c.dir, Since: c.since}, Picks: nums, DryRun: *dry,
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "cutline:", err)
-		return 1
+		return finish(nil, c.format, stdout, stderr, err)
 	}
-	if err := plan.Write(os.Stdout, cutline.Format(*format)); err != nil {
-		fmt.Fprintln(os.Stderr, "cutline:", err)
+	return finish(plan, c.format, stdout, stderr, nil)
+}
+
+func runNotes(args []string, stdout, stderr io.Writer) int {
+	var c common
+	fs := newFlags("notes", stderr, &c)
+	picks := fs.String("pick", "", "comma separated pull request numbers to include (default: every change missing from B)")
+	a, b, ok := parse(fs, args)
+	if !ok {
+		return 2
+	}
+	nums, err := parsePicks(*picks)
+	if err != nil {
+		fmt.Fprintln(stderr, "cutline:", err)
+		return 2
+	}
+	notes, err := cutline.BuildNotes(context.Background(), a, b, cutline.PlanOptions{
+		Options: cutline.Options{Dir: c.dir, Since: c.since}, Picks: nums,
+	})
+	if err != nil {
+		return finish(nil, c.format, stdout, stderr, err)
+	}
+	return finish(notes, c.format, stdout, stderr, nil)
+}
+
+func runVerify(args []string, stdout, stderr io.Writer) int {
+	var c common
+	fs := newFlags("verify", stderr, &c)
+	expect := fs.String("expect", "", "comma separated pull request numbers that must be in B (default: everything in A)")
+	a, b, ok := parse(fs, args)
+	if !ok {
+		return 2
+	}
+	nums, err := parsePicks(*expect)
+	if err != nil {
+		fmt.Fprintln(stderr, "cutline:", err)
+		return 2
+	}
+	v, err := cutline.Verify(context.Background(), a, b, cutline.VerifyOptions{
+		Options: cutline.Options{Dir: c.dir, Since: c.since}, Expect: nums,
+	})
+	if err != nil {
+		return finish(nil, c.format, stdout, stderr, err)
+	}
+	if code := finish(v, c.format, stdout, stderr, nil); code != 0 {
+		return code
+	}
+	if !v.OK {
 		return 1
 	}
 	return 0
