@@ -196,7 +196,7 @@ func TestPlanOutputFormats(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, want := range []string{"git cherry-pick -x " + p.Steps[0].Commits[0], "WARNING", "CONFLICT"} {
+	for _, want := range []string{"git cherry-pick -x " + p.Steps[0].Commits[0], "WARNING", "CONFLICT", "1 step(s) conflict"} {
 		if !strings.Contains(text.String(), want) {
 			t.Errorf("text lacks %q:\n%s", want, text.String())
 		}

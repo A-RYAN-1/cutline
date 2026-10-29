@@ -53,7 +53,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return runVerify(rest, stdout, stderr)
 		}
 	}
-	fmt.Fprint(stderr, usage)
+	_, _ = fmt.Fprint(stderr, usage)
 	return 2
 }
 
@@ -69,7 +69,7 @@ func newFlags(name string, stderr io.Writer, c *common) *flag.FlagSet {
 	fs.StringVar(&c.since, "since", "", "only commits newer than this date, for example 2026-10-01 or \"2 weeks ago\"")
 	fs.StringVar(&c.format, "format", "text", "output format: text, markdown or json")
 	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), usage)
+		_, _ = fmt.Fprint(fs.Output(), usage)
 		fs.PrintDefaults()
 	}
 	return fs
@@ -107,7 +107,7 @@ func finish(w writer, format string, stdout, stderr io.Writer, err error) int {
 		err = w.Write(stdout, cutline.Format(format))
 	}
 	if err != nil {
-		fmt.Fprintln(stderr, "cutline:", err)
+		_, _ = fmt.Fprintln(stderr, "cutline:", err)
 		return 1
 	}
 	return 0
@@ -139,7 +139,7 @@ func runPlan(args []string, stdout, stderr io.Writer) int {
 	}
 	nums, err := parsePicks(*picks)
 	if err != nil {
-		fmt.Fprintln(stderr, "cutline:", err)
+		_, _ = fmt.Fprintln(stderr, "cutline:", err)
 		return 2
 	}
 	plan, err := cutline.BuildPlan(context.Background(), a, b, cutline.PlanOptions{
@@ -161,7 +161,7 @@ func runNotes(args []string, stdout, stderr io.Writer) int {
 	}
 	nums, err := parsePicks(*picks)
 	if err != nil {
-		fmt.Fprintln(stderr, "cutline:", err)
+		_, _ = fmt.Fprintln(stderr, "cutline:", err)
 		return 2
 	}
 	notes, err := cutline.BuildNotes(context.Background(), a, b, cutline.PlanOptions{
@@ -183,7 +183,7 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 	}
 	nums, err := parsePicks(*expect)
 	if err != nil {
-		fmt.Fprintln(stderr, "cutline:", err)
+		_, _ = fmt.Fprintln(stderr, "cutline:", err)
 		return 2
 	}
 	v, err := cutline.Verify(context.Background(), a, b, cutline.VerifyOptions{

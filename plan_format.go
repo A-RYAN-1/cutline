@@ -34,8 +34,13 @@ func (s Step) name() string {
 func (p *Plan) writeText(w io.Writer) error {
 	pr := &printer{w: w}
 	pr.printf("# Promote %d change(s) from %s into %s, oldest first\n", len(p.Steps), p.From, p.Into)
-	if !p.Checked {
+	switch {
+	case !p.Checked:
 		pr.printf("# Not checked: run with -dry-run to find conflicts\n")
+	case p.conflicts() == 0:
+		pr.printf("# Dry run: every step applies cleanly\n")
+	default:
+		pr.printf("# Dry run: %d step(s) conflict, marked below; the others apply\n", p.conflicts())
 	}
 	for _, s := range p.Steps {
 		pr.printf("\n# %s\n", s.name())
@@ -84,4 +89,14 @@ func (p *Plan) writeMarkdown(w io.Writer) error {
 		pr.printf("\nNot checked: run with `-dry-run` to find conflicts.\n")
 	}
 	return pr.err
+}
+
+func (p *Plan) conflicts() int {
+	n := 0
+	for _, s := range p.Steps {
+		if s.Conflict != nil {
+			n++
+		}
+	}
+	return n
 }
