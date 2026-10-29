@@ -72,6 +72,11 @@ func build(r *repo, rng *rand.Rand) *model {
 	}
 	rng.Shuffle(len(lands), func(i, j int) { lands[i], lands[j] = lands[j], lands[i] })
 	r.on("prod")
+	// A baseline commit moves prod off the shared parent. Without it, a plain
+	// pick made in the same second as the original would be byte-identical, so
+	// git would see one commit on both branches and leave it out of the range.
+	r.squashPR("1000", "Prod baseline", "baseline work")
+	m.hotfix[1000] = true
 	for _, l := range lands {
 		switch m.stage[l.pr] {
 		case fatePickX:
