@@ -195,7 +195,7 @@ func dryRun(ctx context.Context, dir, b string, p *Plan) (err error) {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 	if _, err := runGit(ctx, dir, nil, "-c", "core.autocrlf=false", "worktree", "add", "--detach", "--quiet", tmp, b); err != nil {
 		return err
 	}
