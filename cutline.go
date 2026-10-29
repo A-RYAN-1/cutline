@@ -1,11 +1,3 @@
-// Package cutline reports which pull requests are in one branch but not in
-// another, matching changes across squash merges, merge commits and
-// cherry-picks.
-//
-// Git alone lists SHAs, and "git cherry" matches by patch id, which a squash
-// of several commits or a conflict resolution changes. cutline keeps a chain of
-// fingerprints per commit (cherry-pick trailer, patch id, pull request number,
-// optionally a ticket key) and reports at the level of a pull request.
 package cutline
 
 import (
