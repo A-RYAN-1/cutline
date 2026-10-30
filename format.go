@@ -102,6 +102,9 @@ func (e Entry) line() string {
 		date = date[:10]
 	}
 	fmt.Fprintf(&b, " (%s, %s, %s)", short(e.Commits[0].SHA), e.Author, date)
+	if e.Note != "" {
+		b.WriteString(" [single commit, no PR number]")
+	}
 	if e.Status == StatusReverted {
 		fmt.Fprintf(&b, " [reverted by %s]", short(e.RevertedBy))
 	}
