@@ -32,11 +32,11 @@ No. It reads `git log` and nothing else. Pull request numbers come from the squa
 
 ## Does it work with rebase-and-merge, GitLab or Bitbucket?
 
-Rebase-and-merge lands each commit without a pull request number, so each commit is its own entry, matched by patch id or trailer. GitLab merge requests (`See merge request group/project!12`) are not read yet. Both are listed as limits in the README.
+Rebase-and-merge lands each commit as it is. Commits whose subjects end in the same `(#12)` form one entry; commits with no number are listed one by one with a note saying why, and match across branches by trailer or patch id. GitLab merge requests (`See merge request group/project!12`) are out of scope for now and are not read. Both are listed as limits in the README.
 
 ## What happens with a revert?
 
-It is an ordinary change with its own entry. cutline does not pair it with the change it undoes.
+`Revert "..."` and `Reapply "..."` commits are read from the subject and the `This reverts commit <sha>` line. A change undone by a revert on the same branch is shown under reverted, not missing, and a revert of a revert brings the change back. A revert whose target is outside the compared range is an ordinary change of its own.
 
 ## Does `-dry-run` touch my branches?
 
@@ -44,4 +44,8 @@ No. It adds a temporary detached worktree on the target branch, with `core.autoc
 
 ## Why warn only about older changes?
 
-A pick can depend on an earlier change to the same file that is not on the target yet. A newer change cannot be a prerequisite. The warning looks at files, not hunks, so it can warn more than needed.
+A pick can depend on an earlier change to the same file that is not on the target yet. A newer change cannot be a prerequisite. The warning looks at files, not hunks, so it can warn more than needed. That is deliberate: it is a prompt to look, not a block.
+
+## Does `plan` run the picks or open a pull request?
+
+No. It prints the `git cherry-pick -x` commands in order. `-dry-run` checks them in a temporary worktree and leaves your branches alone. Running them and opening the pull request stay with you or with a backport tool.
