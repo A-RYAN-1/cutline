@@ -22,6 +22,8 @@ const (
 	StatusMissing = "missing" // no commit of the entry is on the other branch
 	StatusPartial = "partial" // some commits are, some are not
 	StatusPresent = "present" // every commit is
+	// StatusReverted marks a change that a revert on the same branch undid.
+	StatusReverted = "reverted"
 )
 
 // Options for Diff.
@@ -46,8 +48,12 @@ type Commit struct {
 	Body    string   `json:"-"`
 	PatchID string   `json:"-"`
 
-	pr    int // pull request number, own or inherited from the merge that brought the commit in
-	match *Match
+	pr         int // pull request number, own or inherited from the merge that brought the commit in
+	match      *Match
+	revert     string // commit id this commit reverts, if it is a revert
+	reverted   bool   // a revert on the same side undoes this commit
+	revertedBy string
+	dropped    bool // a revert that cancels something, or was cancelled itself: not a change
 }
 
 // Match links a commit to its counterpart on the other branch.
@@ -72,6 +78,11 @@ type Entry struct {
 	Date    string        `json:"date"`
 	Status  string        `json:"status"`
 	Commits []CommitMatch `json:"commits"`
+	// RevertedBy is the revert commit when Status is "reverted".
+	RevertedBy string `json:"reverted_by,omitempty"`
+	// RevertedCommits are commits of the entry that a revert on the same
+	// branch undid; they are left out of Commits.
+	RevertedCommits []string `json:"reverted_commits,omitempty"`
 }
 
 // Result of comparing branch A with branch B.
@@ -84,6 +95,10 @@ type Result struct {
 	OnlyB []Entry `json:"only_b"`
 	// Both are entries of A fully present in B, with how they matched.
 	Both []Entry `json:"both"`
+	// RevertedA and RevertedB are changes a revert on that branch undid. They
+	// are neither missing from the other branch nor present in it.
+	RevertedA []Entry `json:"reverted_a"`
+	RevertedB []Entry `json:"reverted_b"`
 }
 
 // Diff compares branch (or any ref) a with b.
@@ -96,6 +111,8 @@ func Diff(ctx context.Context, a, b string, opt Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	cancelReverts(ca)
+	cancelReverts(cb)
 	ga, err := group(ctx, opt.Dir, ca)
 	if err != nil {
 		return nil, err
@@ -104,17 +121,27 @@ func Diff(ctx context.Context, a, b string, opt Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	matchSides(ca, cb, opt.MatchTicket)
-	res := &Result{A: a, B: b, OnlyA: []Entry{}, OnlyB: []Entry{}, Both: []Entry{}}
+	matchSides(live(ca), live(cb), opt.MatchTicket)
+	res := &Result{A: a, B: b, OnlyA: []Entry{}, OnlyB: []Entry{}, Both: []Entry{}, RevertedA: []Entry{}, RevertedB: []Entry{}}
 	for _, g := range ga {
-		if e := g.entry(); e.Status == StatusPresent {
+		e, ok := g.entry()
+		switch {
+		case !ok:
+		case e.Status == StatusReverted:
+			res.RevertedA = append(res.RevertedA, e)
+		case e.Status == StatusPresent:
 			res.Both = append(res.Both, e)
-		} else {
+		default:
 			res.OnlyA = append(res.OnlyA, e)
 		}
 	}
 	for _, g := range gb {
-		if e := g.entry(); e.Status != StatusPresent {
+		e, ok := g.entry()
+		switch {
+		case !ok:
+		case e.Status == StatusReverted:
+			res.RevertedB = append(res.RevertedB, e)
+		case e.Status != StatusPresent:
 			res.OnlyB = append(res.OnlyB, e)
 		}
 	}
@@ -127,16 +154,56 @@ type change struct {
 	members []*Commit // non-merge commits that make up the change
 }
 
-func (g *change) entry() Entry {
-	counted := g.members
-	if len(counted) == 0 {
-		counted = []*Commit{g.anchor}
+// entry builds the report line of a change. ok is false when nothing is left
+// of it: every commit was a revert that cancelled something.
+func (g *change) entry() (e Entry, ok bool) {
+	var counted []*Commit
+	var undone []*Commit
+	for _, c := range g.members {
+		switch {
+		case c.dropped:
+		case c.reverted || (g.anchor != nil && g.anchor.reverted && len(g.anchor.Parents) > 1):
+			undone = append(undone, c)
+		default:
+			counted = append(counted, c)
+		}
+	}
+	if len(g.members) == 0 && g.anchor != nil && !g.anchor.dropped {
+		if g.anchor.reverted {
+			undone = []*Commit{g.anchor}
+		} else {
+			counted = []*Commit{g.anchor}
+		}
 	}
 	first := g.anchor
-	if first == nil {
-		first = counted[0]
+	if first == nil || first.dropped {
+		switch {
+		case len(counted) > 0:
+			first = counted[0]
+		case len(undone) > 0:
+			first = undone[0]
+		default:
+			return Entry{}, false
+		}
 	}
-	e := Entry{PR: g.pr, Title: cleanTitle(first.Subject), Author: first.Author, Date: first.Date}
+	e = Entry{PR: g.pr, Title: cleanTitle(first.Subject), Author: first.Author, Date: first.Date}
+	if len(counted) == 0 {
+		if len(undone) == 0 {
+			return Entry{}, false
+		}
+		e.Status = StatusReverted
+		e.RevertedBy = undone[0].revertedBy
+		if g.anchor != nil && g.anchor.reverted {
+			e.RevertedBy = g.anchor.revertedBy
+		}
+		for _, c := range undone {
+			e.Commits = append(e.Commits, CommitMatch{SHA: c.SHA, Subject: c.Subject})
+		}
+		return e, true
+	}
+	for _, c := range undone {
+		e.RevertedCommits = append(e.RevertedCommits, c.SHA)
+	}
 	matched := 0
 	for _, c := range counted {
 		e.Commits = append(e.Commits, CommitMatch{SHA: c.SHA, Subject: c.Subject, Match: c.match})
@@ -152,7 +219,18 @@ func (g *change) entry() Entry {
 	default:
 		e.Status = StatusPartial
 	}
-	return e
+	return e, true
+}
+
+// live returns the commits that take part in matching.
+func live(commits []*Commit) []*Commit {
+	out := make([]*Commit, 0, len(commits))
+	for _, c := range commits {
+		if !c.dropped && !c.reverted {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func cleanTitle(s string) string {
