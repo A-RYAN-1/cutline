@@ -1,0 +1,15 @@
+name: Feature request
+description: Propose something cutline should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem you are solving
+      description: Which branches you compare, how changes reach the release branch (squash, merge commit, rebase, cherry-pick) and what the current output misses.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like the command or API to do
