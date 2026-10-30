@@ -43,6 +43,7 @@ func (r *Result) writeText(w io.Writer) error {
 		p.printf("  %s\n", e.line())
 	}
 	p.printf("In both (matched): %d\n", len(r.Both))
+	r.writeReverted(p, "", false)
 	return p.err
 }
 
@@ -60,7 +61,33 @@ func (r *Result) writeMarkdown(w io.Writer) error {
 	for _, e := range r.Both {
 		p.printf("- %s (%s)\n", e.line(), e.reasons())
 	}
+	r.writeReverted(p, "\n## Reverted on `%[2]s` (%[1]d)\n\n", true)
 	return p.err
+}
+
+// writeReverted prints the changes a revert undid on each branch. They are
+// shown apart so a reverted change is not mistaken for a missing one.
+func (r *Result) writeReverted(p *printer, head string, md bool) {
+	for _, side := range []struct {
+		branch  string
+		entries []Entry
+	}{{r.A, r.RevertedA}, {r.B, r.RevertedB}} {
+		if len(side.entries) == 0 {
+			continue
+		}
+		if md {
+			p.printf(head, len(side.entries), side.branch)
+		} else {
+			p.printf("Reverted on %s: %d\n", side.branch, len(side.entries))
+		}
+		for _, e := range side.entries {
+			if md {
+				p.printf("- %s\n", e.line())
+			} else {
+				p.printf("  %s\n", e.line())
+			}
+		}
+	}
 }
 
 // line is one entry on one line: "#12 Title (abc1234, Author, 2026-10-01) [partial 1/3]".
@@ -75,6 +102,9 @@ func (e Entry) line() string {
 		date = date[:10]
 	}
 	fmt.Fprintf(&b, " (%s, %s, %s)", short(e.Commits[0].SHA), e.Author, date)
+	if e.Status == StatusReverted {
+		fmt.Fprintf(&b, " [reverted by %s]", short(e.RevertedBy))
+	}
 	if e.Status == StatusPartial {
 		n := 0
 		for _, c := range e.Commits {
