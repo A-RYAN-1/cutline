@@ -17,6 +17,11 @@ const (
 	ReasonTicket Reason = "ticket key"
 )
 
+// NoteUnmatched is the reason shown for a commit that belongs to no pull
+// request cutline can name. A rebase-merged pull request lands this way when
+// its commit subjects carry no "(#n)" suffix.
+const NoteUnmatched = "no pull request number in the subject and no merge commit; listed as a single commit"
+
 // Status of an entry on the other branch.
 const (
 	StatusMissing = "missing" // no commit of the entry is on the other branch
@@ -83,6 +88,9 @@ type Entry struct {
 	// RevertedCommits are commits of the entry that a revert on the same
 	// branch undid; they are left out of Commits.
 	RevertedCommits []string `json:"reverted_commits,omitempty"`
+	// Note says why a commit stands alone: no pull request number in its
+	// subject and no merge commit, as with rebase-merged pull requests.
+	Note string `json:"note,omitempty"`
 }
 
 // Result of comparing branch A with branch B.
@@ -187,6 +195,9 @@ func (g *change) entry() (e Entry, ok bool) {
 		}
 	}
 	e = Entry{PR: g.pr, Title: cleanTitle(first.Subject), Author: first.Author, Date: first.Date}
+	if g.pr == 0 {
+		e.Note = NoteUnmatched
+	}
 	if len(counted) == 0 {
 		if len(undone) == 0 {
 			return Entry{}, false
