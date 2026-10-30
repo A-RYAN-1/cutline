@@ -79,6 +79,7 @@ func BuildPlan(ctx context.Context, a, b string, opt PlanOptions) (*Plan, error)
 		first int
 	}
 	var picked, left []cand
+	var all []string
 	for _, e := range res.OnlyA {
 		known[e.PR] = true
 		c := cand{entry: e, step: Step{PR: e.PR, Title: e.Title}, first: -1}
@@ -93,21 +94,26 @@ func BuildPlan(ctx context.Context, a, b string, opt PlanOptions) (*Plan, error)
 		}
 		sort.Slice(c.step.Commits, func(i, j int) bool { return order[c.step.Commits[i]] < order[c.step.Commits[j]] })
 		c.first = order[c.step.Commits[0]]
-		files := map[string]bool{}
-		for _, sha := range c.step.Commits {
-			fs, err := commitFiles(ctx, opt.Dir, sha)
-			if err != nil {
-				return nil, err
-			}
-			for _, f := range fs {
-				files[f] = true
-			}
-		}
-		c.step.Files = sortedKeys(files)
+		all = append(all, c.step.Commits...)
 		if len(want) == 0 || (e.PR != 0 && want[e.PR]) {
 			picked = append(picked, c)
 		} else {
 			left = append(left, c)
+		}
+	}
+	byCommit, err := commitFilesBatch(ctx, opt.Dir, all)
+	if err != nil {
+		return nil, err
+	}
+	for _, list := range [][]cand{picked, left} {
+		for i := range list {
+			files := map[string]bool{}
+			for _, sha := range list[i].step.Commits {
+				for _, f := range byCommit[sha] {
+					files[f] = true
+				}
+			}
+			list[i].step.Files = sortedKeys(files)
 		}
 	}
 	for n := range want {
@@ -156,12 +162,30 @@ func topoOrder(ctx context.Context, dir, exclude, include string) (map[string]in
 	return order, parents, nil
 }
 
-func commitFiles(ctx context.Context, dir, sha string) ([]string, error) {
-	out, err := runGit(ctx, dir, nil, "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", sha)
-	if err != nil {
-		return nil, err
+// commitFilesBatch lists the files each commit touches with one git call.
+func commitFilesBatch(ctx context.Context, dir string, shas []string) (map[string][]string, error) {
+	out := map[string][]string{}
+	for _, chunk := range chunks(shas) {
+		args := append([]string{"-c", "core.quotepath=false", "log", "--no-walk=unsorted", "--no-renames", "--name-only", "--format=%x1e%H"}, chunk...)
+		raw, err := runGit(ctx, dir, nil, append(args, "--")...)
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range strings.Split(string(raw), "\x1e") {
+			lines := strings.Split(strings.TrimSpace(rec), "\n")
+			if lines[0] == "" {
+				continue
+			}
+			var files []string
+			for _, l := range lines[1:] {
+				if l = strings.TrimSpace(l); l != "" {
+					files = append(files, l)
+				}
+			}
+			out[strings.TrimSpace(lines[0])] = files
+		}
 	}
-	return strings.Fields(string(out)), nil
+	return out, nil
 }
 
 func sortedKeys(m map[string]bool) []string {

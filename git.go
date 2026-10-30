@@ -70,12 +70,35 @@ func parseCommits(out []byte) ([]*Commit, error) {
 
 // loadCommits reads the given commits, wherever they are in the history.
 func loadCommits(ctx context.Context, dir string, shas []string) ([]*Commit, error) {
-	args := append([]string{"log", "--no-walk=unsorted", "--format=%H%x1f%P%x1f%an%x1f%aI%x1f%s%x1f%b%x1e"}, shas...)
-	out, err := runGit(ctx, dir, nil, append(args, "--")...)
-	if err != nil {
-		return nil, err
+	var all []*Commit
+	for _, chunk := range chunks(shas) {
+		args := append([]string{"log", "--no-walk=unsorted", "--format=%H%x1f%P%x1f%an%x1f%aI%x1f%s%x1f%b%x1e"}, chunk...)
+		out, err := runGit(ctx, dir, nil, append(args, "--")...)
+		if err != nil {
+			return nil, err
+		}
+		cs, err := parseCommits(out)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, cs...)
 	}
-	return parseCommits(out)
+	return all, nil
+}
+
+// chunks splits commit ids so one git command line stays well under the
+// Windows limit of about 32,000 characters.
+func chunks(shas []string) [][]string {
+	const size = 200
+	var out [][]string
+	for len(shas) > size {
+		out = append(out, shas[:size])
+		shas = shas[size:]
+	}
+	if len(shas) > 0 {
+		out = append(out, shas)
+	}
+	return out
 }
 
 func attachPatchIDs(ctx context.Context, dir, rng, since string, commits []*Commit) error {
