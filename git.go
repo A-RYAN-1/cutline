@@ -34,6 +34,17 @@ func loadRange(ctx context.Context, dir, exclude, include, since string) ([]*Com
 	if err != nil {
 		return nil, err
 	}
+	commits, err := parseCommits(out)
+	if err != nil {
+		return nil, err
+	}
+	if err := attachPatchIDs(ctx, dir, rng, since, commits); err != nil {
+		return nil, err
+	}
+	return commits, nil
+}
+
+func parseCommits(out []byte) ([]*Commit, error) {
 	var commits []*Commit
 	for _, rec := range strings.Split(string(out), "\x1e") {
 		rec = strings.TrimLeft(rec, "\r\n")
@@ -54,10 +65,17 @@ func loadRange(ctx context.Context, dir, exclude, include, since string) ([]*Com
 			pr:      PRNumber(f[4]),
 		})
 	}
-	if err := attachPatchIDs(ctx, dir, rng, since, commits); err != nil {
+	return commits, nil
+}
+
+// loadCommits reads the given commits, wherever they are in the history.
+func loadCommits(ctx context.Context, dir string, shas []string) ([]*Commit, error) {
+	args := append([]string{"log", "--no-walk=unsorted", "--format=%H%x1f%P%x1f%an%x1f%aI%x1f%s%x1f%b%x1e"}, shas...)
+	out, err := runGit(ctx, dir, nil, append(args, "--")...)
+	if err != nil {
 		return nil, err
 	}
-	return commits, nil
+	return parseCommits(out)
 }
 
 func attachPatchIDs(ctx context.Context, dir, rng, since string, commits []*Commit) error {

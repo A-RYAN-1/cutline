@@ -15,6 +15,9 @@ const (
 	ReasonPatch  Reason = "patch id"
 	ReasonPR     Reason = "pull request number"
 	ReasonTicket Reason = "ticket key"
+	// ReasonShared marks a commit of a merge-style pull request that is
+	// reachable from both branches, so it is not in the compared range.
+	ReasonShared Reason = "already on both branches"
 )
 
 // NoteUnmatched is the reason shown for a commit that belongs to no pull
@@ -265,11 +268,31 @@ func group(ctx context.Context, dir string, commits []*Commit) ([]*change, error
 		if err != nil {
 			return nil, err
 		}
+		var outside []string
 		for _, sha := range members {
-			if m := inRange[sha]; m != nil && len(m.Parents) < 2 {
-				m.pr = g.pr
-				g.members = append(g.members, m)
-				owner[sha] = g
+			if m := inRange[sha]; m != nil {
+				if len(m.Parents) < 2 {
+					m.pr = g.pr
+					g.members = append(g.members, m)
+					owner[sha] = g
+				}
+			} else {
+				outside = append(outside, sha)
+			}
+		}
+		if len(outside) > 0 && len(g.members) > 0 {
+			// Commits of the pull request that both branches already have
+			// drop out of the range; list them so the entry is whole.
+			shared, err := loadCommits(ctx, dir, outside)
+			if err != nil {
+				return nil, err
+			}
+			for _, m := range shared {
+				if len(m.Parents) < 2 {
+					m.pr = g.pr
+					m.match = &Match{Other: m.SHA, Reason: ReasonShared}
+					g.members = append(g.members, m)
+				}
 			}
 		}
 		owner[c.SHA] = g
