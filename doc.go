@@ -41,6 +41,6 @@
 // # What it does not do
 //
 // It does not open pull requests or run the picks for you (backport tools do
-// that), it does not read GitLab merge requests, and a revert is an ordinary
-// change. See the README for the limits.
+// that), it does not read GitLab merge requests, and its same-file warnings look at
+// files, not hunks. See the README for the limits.
 package cutline

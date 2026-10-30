@@ -14,6 +14,7 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 - Rebase-merged pull requests: commits whose subjects carry the same `(#n)` suffix are one entry; commits with no pull request number are listed one by one with a reason (`note` in JSON, `[single commit, no PR number]` in text and markdown). Rebased copies on the other branch match by patch id.
 - Shared commits: a commit of a merge-style pull request that both branches already have is listed in the entry (match reason `already on both branches`), so the entry shows its full commit list and reads as partial; `plan` does not pick it again.
 - `plan` reads the files of all its commits with one git call per 200 commits instead of one per commit: 5000 pull requests went from about 34 to 40 s to about 2.2 s on the benchmark history (Windows).
+- Docs: the README limits and the FAQ now state what is out of scope (GitLab merge requests), what is known and by design (file-level warnings, `plan` never runs picks or opens pull requests) and how reverts, rebase-merge and shared commits are handled.
 - Go API: `Diff`, `BuildPlan`, `BuildNotes`, `Verify` and the parsers `PRNumber`, `IsPRMerge`, `PickedFrom` and `TicketKey`.
 - Proof: a model-based property test over random histories (checked against seven mutations of the matcher), `FuzzParsers`, a race run in CI, and a benchmark over 1000 and 5000 pull requests.
 - Releases with GoReleaser (binaries for Linux, macOS and Windows, checksums); the release notes are the matching section of this file, and a tag must be on `main`.

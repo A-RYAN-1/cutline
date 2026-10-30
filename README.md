@@ -140,13 +140,19 @@ Not deployed yet: it is a command and a library, not a service. Releases are bui
 
 ## Limits
 
-- GitLab merge requests (`See merge request group/project!12`) are not read.
-- A revert is an ordinary change; it is not paired with what it undoes.
-- Rebase-and-merge lands commits without a number, so each commit is its own entry.
+Out of scope for now:
+
+- GitLab merge requests (`See merge request group/project!12`) are not read. Only GitHub's subjects (`Title (#12)`, `Merge pull request #12 from ...`) are understood; a request for GitLab or Bitbucket is welcome as an issue.
+- Titles, labels and authors from the GitHub API are not read (optional enrichment, not built).
+
+Known, by design:
+
+- Same-file warnings do not look at hunks, so a warning can name a change that touches other lines of the same file. It is a prompt to look, never a block.
+- `plan` prints the `git cherry-pick` commands and, with `-dry-run`, checks them in a temporary worktree. It never runs the picks on a real branch and never opens a pull request.
 - A hand-resolved pick that lost both the trailer and the number shows as missing.
-- A commit that is on both branches with the same SHA is outside the range, so a partly promoted pull request can show fewer commits than it has.
-- Same-file warnings do not look at hunks and can over-warn.
-- Titles, labels and authors from the GitHub API are not read.
+- Rebase-and-merge lands commits without a number unless the subjects carry `(#12)`; commits without one are listed one by one, each with a note saying so.
+- A commit of a rebase-merged pull request that both branches already have cannot be told apart from an unrelated commit, so only merge-style pull requests list such shared commits.
+- A revert is paired with what it undoes only when both are on the same side of the comparison; otherwise it is a change of its own.
 
 ## Related tools
 
@@ -154,7 +160,7 @@ See [docs/FAQ.md](docs/FAQ.md) for how this differs from `git cherry`, `nodejs/b
 
 ## Status and roadmap
 
-Built: `diff`, `plan`, `notes`, `verify`, the proof group, docs and tooling. Not built: GitHub enrichment (titles, labels, authors), GitLab merge requests, reverts. Later: the public flip, a version tag and the license, each decided by the author.
+Built: `diff`, `plan`, `notes`, `verify`, the proof group, docs and tooling. Not built: GitHub enrichment (titles, labels, authors) and GitLab merge requests. Later: the public flip, a version tag and the license, each decided by the author.
 
 ## Credits
 
