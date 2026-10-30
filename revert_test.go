@@ -2,8 +2,8 @@ package cutline
 
 import (
 	"bytes"
-	"strings"
 	"reflect"
+	"strings"
 	"testing"
 )
 
