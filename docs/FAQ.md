@@ -28,7 +28,7 @@ Those are hosted, paid products with dashboards. cutline is a command and a Go p
 
 ## Does it need GitHub?
 
-No. It reads `git log` and nothing else. Pull request numbers come from the squash subject `Title (#12)` or the merge subject `Merge pull request #12 from ...`, which GitHub writes by default. Titles, labels and authors from the GitHub API are not read yet.
+No. By default it reads `git log` and nothing else. Pull request numbers come from the squash subject `Title (#12)` or the merge subject `Merge pull request #12 from ...`, which GitHub writes by default. With `-github owner/repo` (or `-github auto` to read the origin remote) it also asks the GitHub API for each pull request, and adds the real title, author, labels and link; a single commit with no number in its subject is looked up by SHA to find the pull request it was merged through. Set `GITHUB_TOKEN` or `GH_TOKEN` for private repositories and a higher rate limit; `-github-api` points at GitHub Enterprise Server. If the API refuses or fails, the report is still printed from git and ends with a `note:` line.
 
 ## Does it work with rebase-and-merge, GitLab or Bitbucket?
 

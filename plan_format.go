@@ -56,6 +56,9 @@ func (p *Plan) writeText(w io.Writer) error {
 			pr.printf("git cherry-pick -x %s\n", sha)
 		}
 	}
+	for _, n := range p.Notices {
+		pr.printf("\n# note: %s\n", n)
+	}
 	return pr.err
 }
 
@@ -87,6 +90,9 @@ func (p *Plan) writeMarkdown(w io.Writer) error {
 	}
 	if !p.Checked {
 		pr.printf("\nNot checked: run with `-dry-run` to find conflicts.\n")
+	}
+	for _, n := range p.Notices {
+		pr.printf("\nNote: %s\n", n)
 	}
 	return pr.err
 }

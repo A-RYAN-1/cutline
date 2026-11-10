@@ -7,6 +7,6 @@ Thanks for looking. cutline answers one question: which pull requests are in one
 3. **Keep the module dependency-free** (standard library and the `git` binary only).
 4. **Commit style:** one imperative line in the Conventional Commits form (`fix: match a revert of a merge`); the pull request title uses the same form. Body if the reason is not obvious.
 5. **Review:** every change goes through a pull request approved by the maintainer; CI (`go vet`, `gofmt`, `go test` on Linux, Windows and macOS, lint) must pass.
-6. **Contributor terms:** the project has no license file yet; the owner decides it. Until then, send code only after the maintainer has confirmed the terms for contributions in the issue. They are written down here once a license is chosen.
+6. **Contributor terms:** by submitting a pull request you agree that your contribution is licensed under the MIT License in `LICENSE`, the same as the rest of the project.
 
 Performance changes need a before and after: run `go test -run xxx -bench . -benchtime 3x -count 3 .` on the base commit and on yours and show both.

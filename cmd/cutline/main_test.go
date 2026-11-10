@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/A-RYAN-1/cutline"
 )
 
 func git(t *testing.T, dir string, args ...string) {
@@ -88,6 +90,40 @@ func TestUsageErrors(t *testing.T) {
 	} {
 		if code, _, errs := do(args...); code != 1 || errs == "" {
 			t.Errorf("%s: code %d, stderr %q, want 1 with a message", name, code, errs)
+		}
+	}
+}
+
+func TestEnricherFlag(t *testing.T) {
+	c := &common{}
+	if e, err := c.enricher(); e != nil || err != nil {
+		t.Errorf("empty flag: %v, %v", e, err)
+	}
+	c = &common{github: "acme/app", githubAPI: "https://ghe.example.test/api/v3"}
+	e, err := c.enricher()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, ok := e.(*cutline.GitHub); !ok || g.Owner != "acme" || g.Repo != "app" || g.BaseURL != "https://ghe.example.test/api/v3" {
+		t.Errorf("enricher = %+v", e)
+	}
+	for _, bad := range []string{"acme", "a/b/c", "/app"} {
+		if _, err := (&common{github: bad}).enricher(); err == nil {
+			t.Errorf("%q should be rejected", bad)
+		}
+	}
+}
+
+func TestRemoteRepo(t *testing.T) {
+	for url, want := range map[string]string{
+		"git@github.com:acme/app.git":     "acme/app",
+		"https://github.com/acme/app":     "acme/app",
+		"https://github.com/acme/app.git": "acme/app",
+		"ssh://git@github.com/acme/app/":  "acme/app",
+	} {
+		m := remoteRepo.FindStringSubmatch(url)
+		if m == nil || m[1]+"/"+m[2] != want {
+			t.Errorf("%s: %v, want %s", url, m, want)
 		}
 	}
 }
