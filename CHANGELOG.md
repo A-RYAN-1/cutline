@@ -4,6 +4,10 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-10
+
+First public release.
+
 ### Added
 
 - Optional GitHub enrichment (`-github owner/repo` or `-github auto`, `-github-api` for Enterprise): real pull request titles, authors, labels and links in `diff`, `plan`, `notes` and `verify`; `notes` groups by label when the title is not a conventional commit; a single commit with no number in its subject is resolved to its pull request through the commit API. Library: the `Enricher` interface, `GitHub` client (standard library only) and `Options.Enricher`. A refused or failed request never fails the report; it adds a `notice`. Requests run 8 at a time.
