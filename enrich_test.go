@@ -10,12 +10,10 @@ import (
 )
 
 // fakeAPI serves the two GitHub endpoints cutline uses.
-func fakeAPI(t *testing.T, status int) (*GitHub, *int) {
+func fakeAPI(t *testing.T, status int) (*GitHub, struct{}) {
 	t.Helper()
-	calls := new(int)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/acme/app/pulls/7", func(w http.ResponseWriter, req *http.Request) {
-		*calls++
 		if status != 200 {
 			w.WriteHeader(status)
 			return
@@ -26,7 +24,6 @@ func fakeAPI(t *testing.T, status int) (*GitHub, *int) {
 		_, _ = w.Write([]byte(`{"number":7,"title":"Add the parser","html_url":"https://example.test/pull/7","user":{"login":"octo"},"labels":[{"name":"bug"},{"name":"p1"}]}`))
 	})
 	mux.HandleFunc("/repos/acme/app/commits/", func(w http.ResponseWriter, req *http.Request) {
-		*calls++
 		if strings.HasSuffix(req.URL.Path, "/pulls") {
 			_, _ = w.Write([]byte(`[{"number":9,"title":"Open one","merged_at":null,"user":{"login":"x"}},{"number":8,"title":"Merged one","merged_at":"2026-10-01T00:00:00Z","user":{"login":"y"},"labels":[]}]`))
 			return
@@ -35,7 +32,7 @@ func fakeAPI(t *testing.T, status int) (*GitHub, *int) {
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return &GitHub{Owner: "acme", Repo: "app", Token: "tok", BaseURL: srv.URL}, calls
+	return &GitHub{Owner: "acme", Repo: "app", Token: "tok", BaseURL: srv.URL}, struct{}{}
 }
 
 func TestGitHubPullRequest(t *testing.T) {
