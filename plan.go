@@ -56,6 +56,8 @@ type Plan struct {
 	Warnings []Warning `json:"warnings"`
 	// Checked is true when a dry run was made.
 	Checked bool `json:"checked"`
+	// Notices are non-fatal problems, such as a refused hosting-service request.
+	Notices []string `json:"notices,omitempty"`
 }
 
 // BuildPlan orders the picks that promote changes from branch a to branch b.
@@ -122,7 +124,7 @@ func BuildPlan(ctx context.Context, a, b string, opt PlanOptions) (*Plan, error)
 		}
 	}
 	sort.Slice(picked, func(i, j int) bool { return picked[i].first < picked[j].first })
-	p := &Plan{From: a, Into: b, Steps: []Step{}, Warnings: []Warning{}}
+	p := &Plan{From: a, Into: b, Steps: []Step{}, Warnings: []Warning{}, Notices: res.Notices}
 	for _, c := range picked {
 		p.Steps = append(p.Steps, c.step)
 		for _, o := range left {

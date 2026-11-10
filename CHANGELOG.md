@@ -6,6 +6,8 @@ All notable changes are listed here, newest first. The format follows [Keep a Ch
 
 ### Added
 
+- Optional GitHub enrichment (`-github owner/repo` or `-github auto`, `-github-api` for Enterprise): real pull request titles, authors, labels and links in `diff`, `plan`, `notes` and `verify`; `notes` groups by label when the title is not a conventional commit; a single commit with no number in its subject is resolved to its pull request through the commit API. Library: the `Enricher` interface, `GitHub` client (standard library only) and `Options.Enricher`. A refused or failed request never fails the report; it adds a `notice`. Requests run 8 at a time.
+- MIT license.
 - `cutline diff A B`: the pull requests in A but not in B and in B but not in A, matched across squash merges, merge commits and cherry-picks by the `cherry picked from` trailer, the stable patch id, the pull request number and, with `-match-ticket`, the ticket key. Text, markdown and JSON output; `-since` limits the history.
 - `cutline plan A B`: the `git cherry-pick -x` commands that promote chosen pull requests (`-pick`) or every missing one, oldest first, leaving out commits already on B. Warns when an older change that is not in the plan touches the same files. `-dry-run` applies the picks in a temporary worktree and marks the steps that conflict, without touching branches or the working tree.
 - `cutline notes A B`: release notes for the pending changes, grouped by conventional commit type, with breaking changes marked.

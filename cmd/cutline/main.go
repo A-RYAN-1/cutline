@@ -60,6 +60,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 // common holds the flags every subcommand shares.
 type common struct {
 	dir, since, format string
+	github, githubAPI  string
 }
 
 func newFlags(name string, stderr io.Writer, c *common) *flag.FlagSet {
@@ -68,6 +69,8 @@ func newFlags(name string, stderr io.Writer, c *common) *flag.FlagSet {
 	fs.StringVar(&c.dir, "C", "", "repository directory (default: current directory)")
 	fs.StringVar(&c.since, "since", "", "only commits newer than this date, for example 2026-10-01 or \"2 weeks ago\"")
 	fs.StringVar(&c.format, "format", "text", "output format: text, markdown or json")
+	fs.StringVar(&c.github, "github", "", "add titles, authors, labels and links from GitHub: owner/repo, or auto to read the origin remote (token from GITHUB_TOKEN or GH_TOKEN)")
+	fs.StringVar(&c.githubAPI, "github-api", "", "GitHub API root for Enterprise Server (default https://api.github.com)")
 	fs.Usage = func() {
 		_, _ = fmt.Fprint(fs.Output(), usage)
 		fs.PrintDefaults()
@@ -121,7 +124,12 @@ func runDiff(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	res, err := cutline.Diff(context.Background(), a, b, cutline.Options{Dir: c.dir, Since: c.since, MatchTicket: *ticket})
+	enr, err := c.enricher()
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "cutline:", err)
+		return 2
+	}
+	res, err := cutline.Diff(context.Background(), a, b, cutline.Options{Dir: c.dir, Since: c.since, MatchTicket: *ticket, Enricher: enr})
 	if err != nil {
 		return finish(nil, c.format, stdout, stderr, err)
 	}
@@ -137,13 +145,18 @@ func runPlan(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
+	enr, err := c.enricher()
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "cutline:", err)
+		return 2
+	}
 	nums, err := parsePicks(*picks)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "cutline:", err)
 		return 2
 	}
 	plan, err := cutline.BuildPlan(context.Background(), a, b, cutline.PlanOptions{
-		Options: cutline.Options{Dir: c.dir, Since: c.since}, Picks: nums, DryRun: *dry,
+		Options: cutline.Options{Dir: c.dir, Since: c.since, Enricher: enr}, Picks: nums, DryRun: *dry,
 	})
 	if err != nil {
 		return finish(nil, c.format, stdout, stderr, err)
@@ -159,13 +172,18 @@ func runNotes(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
+	enr, err := c.enricher()
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "cutline:", err)
+		return 2
+	}
 	nums, err := parsePicks(*picks)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "cutline:", err)
 		return 2
 	}
 	notes, err := cutline.BuildNotes(context.Background(), a, b, cutline.PlanOptions{
-		Options: cutline.Options{Dir: c.dir, Since: c.since}, Picks: nums,
+		Options: cutline.Options{Dir: c.dir, Since: c.since, Enricher: enr}, Picks: nums,
 	})
 	if err != nil {
 		return finish(nil, c.format, stdout, stderr, err)
@@ -181,13 +199,18 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
+	enr, err := c.enricher()
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "cutline:", err)
+		return 2
+	}
 	nums, err := parsePicks(*expect)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "cutline:", err)
 		return 2
 	}
 	v, err := cutline.Verify(context.Background(), a, b, cutline.VerifyOptions{
-		Options: cutline.Options{Dir: c.dir, Since: c.since}, Expect: nums,
+		Options: cutline.Options{Dir: c.dir, Since: c.since, Enricher: enr}, Expect: nums,
 	})
 	if err != nil {
 		return finish(nil, c.format, stdout, stderr, err)

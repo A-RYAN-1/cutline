@@ -35,6 +35,10 @@
 //   - [BuildNotes] writes release notes for the pending changes.
 //   - [Verify] checks that B has what A has and nothing A lacks.
 //
+// Set Options.Enricher (for example a [GitHub] value) to add pull request
+// titles, authors, labels and links from the hosting service; without it
+// nothing leaves the machine.
+//
 // All of them run the git command line in Options.Dir, never change a branch or
 // the working tree, and need the git command line on PATH.
 //

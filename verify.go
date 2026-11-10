@@ -26,6 +26,8 @@ type Verification struct {
 	Ahead []Entry `json:"ahead"`
 	// OK is true when Missing and Ahead are both empty.
 	OK bool `json:"ok"`
+	// Notices are non-fatal problems, such as a refused hosting-service request.
+	Notices []string `json:"notices,omitempty"`
 }
 
 // Verify checks that b has everything expected from a, and reports changes in b
@@ -39,7 +41,7 @@ func Verify(ctx context.Context, a, b string, opt VerifyOptions) (*Verification,
 	for _, n := range opt.Expect {
 		want[n] = true
 	}
-	v := &Verification{From: a, Into: b, Missing: []Entry{}, Ahead: res.OnlyB}
+	v := &Verification{From: a, Into: b, Missing: []Entry{}, Ahead: res.OnlyB, Notices: res.Notices}
 	seen := map[int]bool{}
 	for _, e := range res.OnlyA {
 		if len(want) == 0 || (e.PR != 0 && want[e.PR]) {
@@ -72,6 +74,7 @@ func (v *Verification) Write(w io.Writer, f Format) error {
 		p := &printer{w: w}
 		if v.OK {
 			p.printf("OK: %s has everything %s has, and nothing %s lacks.\n", v.Into, v.From, v.From)
+			writeNotices(p, v.Notices)
 			return p.err
 		}
 		p.printf("NOT OK\n")
@@ -87,6 +90,7 @@ func (v *Verification) Write(w io.Writer, f Format) error {
 				p.printf("  %s\n", e.line())
 			}
 		}
+		writeNotices(p, v.Notices)
 		return p.err
 	}
 	return fmt.Errorf("unknown format %q (use text, markdown or json)", f)

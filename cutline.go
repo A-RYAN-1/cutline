@@ -44,6 +44,9 @@ type Options struct {
 	// MatchTicket also matches by the ticket key (ABC-123) in the subject. It
 	// is off by default because one ticket can cover several pull requests.
 	MatchTicket bool
+	// Enricher, when set, adds pull request titles, authors, labels and links
+	// from a hosting service. Nil keeps cutline offline.
+	Enricher Enricher
 }
 
 // Commit is one commit with the data cutline fingerprints.
@@ -94,6 +97,9 @@ type Entry struct {
 	// Note says why a commit stands alone: no pull request number in its
 	// subject and no merge commit, as with rebase-merged pull requests.
 	Note string `json:"note,omitempty"`
+	// Labels and URL come from an Enricher; they are empty without one.
+	Labels []string `json:"labels,omitempty"`
+	URL    string   `json:"url,omitempty"`
 }
 
 // Result of comparing branch A with branch B.
@@ -110,6 +116,9 @@ type Result struct {
 	// are neither missing from the other branch nor present in it.
 	RevertedA []Entry `json:"reverted_a"`
 	RevertedB []Entry `json:"reverted_b"`
+	// Notices are problems that did not stop the diff, such as a refused
+	// hosting-service request.
+	Notices []string `json:"notices,omitempty"`
 }
 
 // Diff compares branch (or any ref) a with b.
@@ -156,6 +165,7 @@ func Diff(ctx context.Context, a, b string, opt Options) (*Result, error) {
 			res.OnlyB = append(res.OnlyB, e)
 		}
 	}
+	enrich(ctx, res, opt.Enricher)
 	return res, nil
 }
 

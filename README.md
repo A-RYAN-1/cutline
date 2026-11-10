@@ -2,12 +2,12 @@
 
 Which pull requests are in `stage` but not in `prod`, and the other way round? cutline answers from your local git history, matching changes across squash merges, merge commits and cherry-picks, then turns the answer into a checked cherry-pick plan, release notes and a post-release gate.
 
-Status: private, pre-release. No license has been chosen and nothing is tagged.
+Status: pre-release (v0). Licensed under MIT.
 
 ## Try it
 
 ```
-go install github.com/A-RYAN-1/cutline/cmd/cutline@latest   # once the repository is public
+go install github.com/A-RYAN-1/cutline/cmd/cutline@latest
 cutline diff stage prod
 ```
 
@@ -40,6 +40,8 @@ Teams that ship through a branch per environment ask the same questions at every
 | `cutline verify A B` | gate a release: B must have everything A has and nothing A lacks; `-expect 103,104` narrows it | 1 when not OK |
 
 Shared flags: `-C dir`, `-since 2026-10-01` (or `"2 weeks ago"`), `-format text|markdown|json`. `diff` also takes `-match-ticket`.
+
+Optional GitHub data: `-github owner/repo` (or `-github auto` to read the origin remote) adds the real pull request title, author, labels and link to every command, and finds the pull request of a single commit that has no number in its subject. `notes` then groups by label (`bug`, `enhancement`, `documentation`, ...) when a title is not a conventional commit. Without the flag nothing leaves your machine.
 
 ```
 $ cutline plan -pick 103,104 -dry-run stage prod
@@ -132,7 +134,7 @@ Needs Go 1.23 or newer and `git` on PATH. CI runs on Linux, Windows and macOS.
 
 ## Environment variables
 
-None. cutline reads no environment variables and makes no network calls.
+`GITHUB_TOKEN` or `GH_TOKEN`, read only when `-github` is used: it raises the API rate limit and allows private repositories. Without `-github` cutline reads no environment variables and makes no network calls.
 
 ## Deployment
 
@@ -143,7 +145,6 @@ Not deployed yet: it is a command and a library, not a service. Releases are bui
 Out of scope for now:
 
 - GitLab merge requests (`See merge request group/project!12`) are not read. Only GitHub's subjects (`Title (#12)`, `Merge pull request #12 from ...`) are understood; a request for GitLab or Bitbucket is welcome as an issue.
-- Titles, labels and authors from the GitHub API are not read (optional enrichment, not built).
 
 Known, by design:
 
@@ -160,14 +161,14 @@ See [docs/FAQ.md](docs/FAQ.md) for how this differs from `git cherry`, `nodejs/b
 
 ## Status and roadmap
 
-Built: `diff`, `plan`, `notes`, `verify`, the proof group, docs and tooling. Not built: GitHub enrichment (titles, labels, authors) and GitLab merge requests. Later: the public flip, a version tag and the license, each decided by the author.
+Built: `diff`, `plan`, `notes`, `verify`, optional GitHub enrichment, the proof group, docs and tooling. Not built: GitLab merge requests.
 
 ## Credits
 
 Written by Aryan Deshmukh (A-RYAN-1).
 
-Last updated: 2026-10-29
+Last updated: 2026-11-10
 
 ## Contributing and license
 
-The repository is private until the author decides otherwise; there is no license file yet. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Released under the [MIT License](LICENSE). Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).

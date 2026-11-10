@@ -44,6 +44,7 @@ func (r *Result) writeText(w io.Writer) error {
 	}
 	p.printf("In both (matched): %d\n", len(r.Both))
 	r.writeReverted(p, "", false)
+	writeNotices(p, r.Notices)
 	return p.err
 }
 
@@ -62,6 +63,7 @@ func (r *Result) writeMarkdown(w io.Writer) error {
 		p.printf("- %s (%s)\n", e.line(), e.reasons())
 	}
 	r.writeReverted(p, "\n## Reverted on `%[2]s` (%[1]d)\n\n", true)
+	writeNotices(p, r.Notices)
 	return p.err
 }
 
@@ -102,6 +104,9 @@ func (e Entry) line() string {
 		date = date[:10]
 	}
 	fmt.Fprintf(&b, " (%s, %s, %s)", short(e.Commits[0].SHA), e.Author, date)
+	if len(e.Labels) > 0 {
+		fmt.Fprintf(&b, " {%s}", strings.Join(e.Labels, ", "))
+	}
 	if e.Note != "" {
 		b.WriteString(" [single commit, no PR number]")
 	}
@@ -147,5 +152,12 @@ type printer struct {
 func (p *printer) printf(format string, a ...any) {
 	if p.err == nil {
 		_, p.err = fmt.Fprintf(p.w, format, a...)
+	}
+}
+
+// writeNotices prints non-fatal problems after the report.
+func writeNotices(p *printer, notices []string) {
+	for _, n := range notices {
+		p.printf("note: %s\n", n)
 	}
 }
